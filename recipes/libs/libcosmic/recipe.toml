@@ -1,0 +1,9 @@
+[source]
+git = "https://gitlab.com/sory-os/libcosmic.git"
+branch = "redox"
+
+[build]
+template = "custom"
+script = """
+cookbook_cargo_packages cosmic
+"""

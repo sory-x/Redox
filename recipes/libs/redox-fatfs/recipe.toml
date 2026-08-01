@@ -1,0 +1,4 @@
+[source]
+git = "https://gitlab.com/sory-os/redox-fatfs.git"
+[build]
+template = "cargo"

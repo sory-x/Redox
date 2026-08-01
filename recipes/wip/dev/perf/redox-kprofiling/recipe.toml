@@ -1,0 +1,6 @@
+#TODO not compiled or tested
+[source]
+git = "https://gitlab.com/sory-os/kprofiling"
+shallow_clone = true
+[build]
+template = "cargo"

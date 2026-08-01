@@ -1,0 +1,8 @@
+[source]
+git = "https://gitlab.com/sory-os/findutils.git"
+
+[build]
+template = "cargo"
+cargoflags = [
+    "--bin find"
+]

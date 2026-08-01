@@ -1,0 +1,5 @@
+# TODO fs4 crate error (https://gitlab.com/sory-os/redox/-/work_items/1840)
+[source]
+git = "https://github.com/rustwasm/wasm-pack"
+[build]
+template = "cargo"

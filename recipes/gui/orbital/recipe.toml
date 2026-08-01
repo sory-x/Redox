@@ -1,0 +1,10 @@
+[source]
+git = "https://gitlab.com/sory-os/orbital.git"
+
+[build]
+template = "cargo"
+
+[package]
+dependencies = [
+    "orbdata"
+]

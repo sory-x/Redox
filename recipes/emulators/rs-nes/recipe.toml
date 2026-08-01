@@ -1,0 +1,8 @@
+[source]
+git = "https://gitlab.com/sory-os/rs-nes.git"
+#git_upstream = "https://github.com/bgourlie/rs-nes.git"
+[build]
+template = "cargo"
+dependencies = [
+    "orbital"
+]

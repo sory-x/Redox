@@ -1,0 +1,6 @@
+[source]
+git = "https://gitlab.com/sory-os/pkgutils.git"
+
+[build]
+template = "cargo"
+cargopath = "pkg-cli"

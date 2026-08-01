@@ -1,0 +1,6 @@
+[source]
+git = "https://gitlab.com/sory-os/redoxer"
+branch = "master"
+
+[build]
+template = "cargo"

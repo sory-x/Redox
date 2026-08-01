@@ -1,0 +1,9 @@
+[source]
+git = "https://gitlab.com/sory-os/redoxfs.git"
+
+[build]
+template = "custom"
+script = """
+# Must be statically linked
+cookbook_cargo
+"""

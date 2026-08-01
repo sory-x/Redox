@@ -1,0 +1,12 @@
+[source]
+git = "https://gitlab.com/sory-os/profiled.git"
+
+[build]
+template = "custom"
+script = """
+# Must be statically linked
+cookbook_cargo
+
+mkdir -p "${COOKBOOK_STAGE}/usr/lib/init.d"
+cp "${COOKBOOK_SOURCE}/init.d/"* "${COOKBOOK_STAGE}/usr/lib/init.d/"
+"""

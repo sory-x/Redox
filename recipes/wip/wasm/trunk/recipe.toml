@@ -1,0 +1,5 @@
+# TODO aws-lc-sys missing RANDGETENTCNT (https://gitlab.com/sory-os/redox/-/work_items/1841)
+[source]
+git = "https://github.com/trunk-rs/trunk"
+[build]
+template = "cargo"

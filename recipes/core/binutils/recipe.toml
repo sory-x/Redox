@@ -1,0 +1,5 @@
+[source]
+git = "https://gitlab.com/sory-os/binutils.git"
+
+[build]
+template = "cargo"

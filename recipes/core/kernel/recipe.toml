@@ -1,0 +1,9 @@
+[source]
+git = "https://gitlab.com/sory-os/kernel.git"
+
+[build]
+template = "custom"
+script = """
+cd "${COOKBOOK_SOURCE}"
+make install BUILD="${COOKBOOK_BUILD}" DESTDIR="${COOKBOOK_STAGE}"
+"""

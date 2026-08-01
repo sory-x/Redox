@@ -1,0 +1,12 @@
+[source]
+git = "https://gitlab.com/sory-os/pkgar.git"
+
+[build]
+template = "cargo"
+cargopackages = [
+    "pkgar",
+    "pkgar-keys",
+]
+cargoflags = [
+    "--features cli"
+]

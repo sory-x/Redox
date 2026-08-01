@@ -1,0 +1,5 @@
+[source]
+git = "https://gitlab.com/sory-os/strace-redox.git"
+
+[build]
+template = "cargo"
