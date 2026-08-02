@@ -13,8 +13,6 @@
 # Cookbook
 /repo
 /web
-/cookbook.toml
-/cookbook.lock
 source
 source.tmp
 source-new

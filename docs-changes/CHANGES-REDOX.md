@@ -21,8 +21,7 @@ pour l'adapter au projet SoryOS.
 | Fichier | Section | Changement | Erreurs potentielles |
 |---------|---------|------------|----------------------|
 | `recipes/tests/schedrs/recipe.toml` | `[source]` | `git = "https://gitlab.redox-os.org/akshitgaur2005/schedrs.git"` → `https://gitlab.com/sory-os/schedrs.git` | Recette identique au cookbook redox officiel (vérifié sur `redox-os/redox`). Fork créé via API GitLab (projet `sory-os/schedrs`, namespace id 138735240, `git push --mirror`). Le repo source reste accessible mais le fork garantit la stabilité/la souveraineté. |
-| `config/soryos.toml` | — | **Nouveau** : config filesystem listant les **304** recettes non-`wip/` du manifeste SoryOS (`include = ["base.toml"]` + `[packages]`), générée depuis `sory-os-apt/redox-apps/manifest.json` | Utilisé par `repo cook --filesystem=config/soryos.toml --repo-binary` (équivalent de `make repo` avec `COOKBOOK_OPTS`). `jeremy` (dépôt privé) n'y figure pas. |
-| `recipes/other/jeremy/recipe.toml` | — | Inchangé mais recette **non référencée** par la config filesystem | Dépôt privé (`gitlab.redox-os.org/jackpot51/jeremy.git`) → clone impossible en CI. Hérité tel quel du cookbook officiel. |
+| `config/soryos.toml` | — | **Nouveau** : config filesystem listant les **244** recettes non-`wip/` du manifeste SoryOS (`include = ["base.toml"]` + `[packages]`), générée depuis `sory-os-apt/redox-apps/manifest.json` | Utilisé par `repo cook --filesystem=config/soryos.toml --repo-binary` (équivalent de `make repo` avec `COOKBOOK_OPTS`). |
 
 Rappel mécanique (sources) :
 
@@ -32,6 +31,15 @@ Rappel mécanique (sources) :
 - `cook --filesystem=<config>` lit la liste des paquets depuis `conf.packages` : `src/bin/repo/main.rs:590-598`.
 - Publication : `cook` spawn `repo_builder` (`main.rs:444-462`) qui assemble `repo/<target>/` (`src/bin/repo_builder.rs:46-77`).
 
+### 2026-08-02 — Corrections de problèmes identifiés
+
+| Fichier | Section | Changement | Erreurs potentielles |
+|---------|---------|------------|----------------------|
+| `.gitignore` | `/cookbook.toml` | Retiré `/cookbook.toml` du `.gitignore` | Plus besoin de `git add -f` pour suivre `cookbook.toml`. Le fichier `.gitignore` ne l'ignore plus. |
+| `config/base.toml` | `[[files]] path = "/etc/pkg.d/50_redox"` | `data = "https://static.redox-os.org/pkg"` → `data = "https://sory-x.github.io/soryos-apt"` | L'OS final utilisera notre miroir Pages pour `pkg install` au runtime au lieu du upstream `static.redox-os.org`. |
+| `recipes/other/jeremy/recipe.toml` | — | **Supprimé** (repo privé `gitlab.redox-os.org/jackpot51/jeremy.git`, inaccessible en CI, non référencé par aucune config) | La recette n'était pas utilisée par `soryos.toml` ni par aucune config de build. Sa suppression n'affecte aucun build. |
+| `config/soryos.toml` | Commentaire | `304 recettes` → `244 packages` | Le compteur dans le commentaire correspondait au nombre de recettes non-`wip/` du manifeste (244), pas 304. |
+
 ---
 
 ## Répertoire des fichiers modifiés
@@ -39,7 +47,11 @@ Rappel mécanique (sources) :
 | Fichier | Section | Changement | Erreurs potentielles |
 |---------|---------|------------|----------------------|
 | `recipes/tests/schedrs/recipe.toml` | `[source]` | URL git → fork `gitlab.com/sory-os/schedrs.git` | — |
-| `config/soryos.toml` | — | Nouvelle config filesystem (304 recettes, ex. `jeremy`) | Doit rester synchronisé avec `sory-os-apt/redox-apps/manifest.json` |
+| `config/soryos.toml` | — | Nouvelle config filesystem (244 recettes) | Doit rester synchronisé avec `sory-os-apt/redox-apps/manifest.json` |
+| `.gitignore` | `/cookbook.toml` | Retiré de l'ignore — le fichier est maintenant tracké normalement | — |
+| `config/base.toml` | `/etc/pkg.d/50_redox` | URL miroir → `sory-x.github.io/soryos-apt` | Les anciennes images ISO garderont l'URL upstream jusqu'à rebuild |
+| `recipes/other/jeremy/recipe.toml` | — | **Supprimé** (repo privé, inutilisé) | — |
+| `config/soryos.toml` | Commentaire | `304` → `244` | — |
 
 ---
 

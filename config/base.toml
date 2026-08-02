@@ -115,7 +115,7 @@ symlink = true
 
 [[files]]
 path = "/etc/pkg.d/50_redox"
-data = "https://static.redox-os.org/pkg"
+data = "https://sory-x.github.io/soryos-apt"
 
 ## /usr and symlinks for usrmerge
 [[files]]

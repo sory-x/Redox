@@ -1,6 +1,7 @@
 # SoryOS - application set for the redox pkgar repository
 # Generated from sory-os-apt/redox-apps/manifest.json
 # The pkgar repo is built with: repo cook --filesystem=config/soryos.toml --repo-binary
+# Contains 244 packages (non-wip recipes from the manifest).
 
 include = ["base.toml"]
 
