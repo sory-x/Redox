@@ -11,6 +11,12 @@ ARCH?=$(HOST_ARCH)
 BOARD?=
 ## Enable to use binary prefix (much faster)
 PREFIX_BINARY?=1
+## Base URL where the prebuilt toolchain archives and base pkgar packages are
+## downloaded from. SoryOS mirrors static.redox-os.org into a GitHub Release:
+##   https://github.com/sory-x/soryos-apt/releases/download/toolchain-redox
+## Override to keep using the upstream server:
+##   TOOLCHAIN_BASE=https://static.redox-os.org/toolchain
+TOOLCHAIN_BASE?=https://github.com/sory-x/soryos-apt/releases/download/toolchain-redox
 ## Enable to use up-to-date rust compiler (experimental, only available to Tier 2 targets)
 ## Even more experimental, add -Zbuild-std to cookbook.toml to allow compilation to Tier 3 targets
 PREFIX_USE_UPSTREAM_RUST_COMPILER?=0

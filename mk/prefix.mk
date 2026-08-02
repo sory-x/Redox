@@ -112,7 +112,7 @@ ifeq ($(PODMAN_BUILD),1)
 	$(PODMAN_RUN) make $@
 else
 	mkdir -p "$(@D)"
-	wget -O $@.partial "https://static.redox-os.org/toolchain/$(HOST_TARGET)/$(TARGET)/$(@F)"
+	wget -O $@.partial "$(TOOLCHAIN_BASE)/$(@F)"
 	mv $@.partial $@
 endif
 
@@ -144,7 +144,7 @@ ifeq ($(PODMAN_BUILD),1)
 	$(PODMAN_RUN) make $@
 else
 	mkdir -p "$(@D)"
-	wget -O $@.partial "https://static.redox-os.org/pkg/$(TARGET)/$(@F)"
+	wget -O $@.partial "$(TOOLCHAIN_BASE)/$(@F)"
 	mv $@.partial $@
 endif
 
