@@ -307,7 +307,6 @@ libretro-super = {}
 cookbook = {}
 relibc-doc = {}
 myfiles = {}
-book = {}
 website = {}
 rustconf2025 = {}
 shared-mime-info = {}
