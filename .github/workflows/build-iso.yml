@@ -1,0 +1,62 @@
+name: Build ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: 'Config name (desktop, minimal, server)'
+        required: true
+        default: 'desktop'
+      repo-binary:
+        description: 'Use pre-built repo binary from release (1) or build from source (0)'
+        required: true
+        default: '1'
+
+env:
+  TOOLCHAIN_BASE: https://github.com/sory-x/soryos-apt/releases/download/toolchain-redox
+  REPO_BINARY: ${{ inputs.repo-binary }}
+  CONFIG_NAME: ${{ inputs.config }}
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman wget curl git build-essential pkg-config libssl-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-05-24
+          components: rust-src, rustfmt, clippy
+
+      - name: Verify toolchain download
+        run: |
+          echo "Testing TOOLCHAIN_BASE reachability..."
+          curl -sI "${TOOLCHAIN_BASE}/x86_64-unknown-redox-toolchain.tar.gz" | head -1
+
+      - name: Build ISO
+        run: |
+          make image REPO_BINARY=${REPO_BINARY} CONFIG_NAME=${CONFIG_NAME}
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soryos-${{ inputs.config }}-iso
+          path: build/x86_64/${{ inputs.config }}/harddrive.img
+          retention-days: 30
+
+      - name: Upload live ISO artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soryos-${{ inputs.config }}-live-iso
+          path: build/x86_64/${{ inputs.config }}/redox-live.iso
+          retention-days: 30
