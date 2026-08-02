@@ -40,6 +40,12 @@ Rappel mécanique (sources) :
 | `recipes/other/jeremy/recipe.toml` | — | **Supprimé** (repo privé `gitlab.redox-os.org/jackpot51/jeremy.git`, inaccessible en CI, non référencé par aucune config) | La recette n'était pas utilisée par `soryos.toml` ni par aucune config de build. Sa suppression n'affecte aucun build. |
 | `config/soryos.toml` | Commentaire | `304 recettes` → `244 packages` | Le compteur dans le commentaire correspondait au nombre de recettes non-`wip/` du manifeste (244), pas 304. |
 
+### 2026-08-02 — Fix : conflit d'override 30_console (orbital vs inputd)
+
+| Fichier | Section | Changement | Erreurs potentielles |
+|---------|---------|------------|----------------------|
+| `config/desktop.toml` | `[[files]]` | Ajout override `30_console` avec `requires_weak 20_orbital` | `server.toml` inclut `minimal.toml` qui redéfinit `30_console` (97B, `inputd -A 2`) après `desktop-minimal.toml` (82B, `requires_weak 20_orbital`). La version finale écrasée n'avait PAS de dépendance sur Orbital, causant un race condition : `getty` démarrait avant qu'Orbital soit prêt, empêchant le panel/launcher de s'afficher correctement. |
+
 ---
 
 ## Répertoire des fichiers modifiés
@@ -52,6 +58,7 @@ Rappel mécanique (sources) :
 | `config/base.toml` | `/etc/pkg.d/50_redox` | URL miroir → `sory-x.github.io/soryos-apt` | Les anciennes images ISO garderont l'URL upstream jusqu'à rebuild |
 | `recipes/other/jeremy/recipe.toml` | — | **Supprimé** (repo privé, inutilisé) | — |
 | `config/soryos.toml` | Commentaire | `304` → `244` | — |
+| `config/desktop.toml` | `[[files]]` | Ajout override `30_console` avec `requires_weak 20_orbital` | Corrige le race condition getty/orbital |
 
 ---
 
@@ -62,7 +69,7 @@ Rappel mécanique (sources) :
 
 | Erreur | Fichier | Ligne | Cause | Correctif |
 |--------|---------|-------|-------|-----------|
-| *(à remplir)* | | | | |
+| Panel/launcher Orbital ne s'affiche pas au boot (taskbar vide ou absente) | `config/desktop.toml` | — | `server.toml` inclut `minimal.toml` qui redéfinit `30_console` (97B, `inputd -A 2`) après `desktop-minimal.toml` (82B, `requires_weak 20_orbital`). La version finale écrasée n'avait PAS de dépendance sur Orbital, causant un race condition : `getty` démarrait avant qu'Orbital soit prêt. | Ajout override `30_console` dans `desktop.toml` avec `requires_weak 20_orbital` pour garantir qu'Orbital démarre avant `getty`. |
 
 ---
 
