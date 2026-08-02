@@ -1,0 +1,10 @@
+# SoryOS cookbook configuration.
+# Mirrors are matched against the URL WITHOUT the protocol prefix, longest
+# match wins (see src/config.rs translate_mirror). The pkg mirror below is
+# required so the cookbook fetches the pkgar repository (base + apps + COSMIC)
+# from our GitHub Pages instead of static.redox-os.org, whose structure
+# <source>/<target>/<file> the cookbook expects. The GNU mirror below is the
+# default one that config.rs would otherwise auto-insert for convenience.
+[mirrors]
+"static.redox-os.org/pkg" = "sory-x.github.io/soryos-apt"
+"ftp.gnu.org/gnu" = "mirrors.ocf.berkeley.edu/gnu"
