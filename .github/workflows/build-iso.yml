@@ -46,6 +46,10 @@ jobs:
         run: |
           make image REPO_BINARY=${REPO_BINARY} CONFIG_NAME=${CONFIG_NAME}
 
+      - name: Build live ISO
+        run: |
+          make live REPO_BINARY=${REPO_BINARY} CONFIG_NAME=${CONFIG_NAME}
+
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
@@ -54,7 +58,6 @@ jobs:
           retention-days: 30
 
       - name: Upload live ISO artifact
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: soryos-${{ inputs.config }}-live-iso
