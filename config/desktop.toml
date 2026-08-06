@@ -1,33 +1,42 @@
-# Default build system configuration
+# SoryOS native desktop profile
+#
+# The normal SoryOS desktop is the native Redox Orbital environment.  The
+# launcher reads application manifests installed by orbutils, orbterm,
+# Netsurf and the SoryOS/COSMIC applications from /usr/share/ui/apps.
+# X11/Xfce remains available separately through CONFIG_NAME=x11.
 
 include = ["desktop-minimal.toml", "server.toml"]
 
-# General settings
 [general]
-# Filesystem size in MiB
-filesystem_size = 650
+filesystem_size = 2048
 
-# Package settings
 [packages]
+# SoryOS native desktop and applications
 cosmic-edit = {}
 cosmic-files = {}
 cosmic-icons = {}
+cosmic-reader = {}
 cosmic-term = {}
 dejavu = {}
 file = {}
 freefont = {}
 hicolor-icon-theme = {}
 installer-gui = {}
+# The installer manifest uses a PNG icon compatible with the native launcher.
 netsurf = {}
 patchelf = {}
 pop-icon-theme = {}
 shared-mime-info = {}
-# orbterm from desktop-minimal should be ignored
-orbterm = "ignore"
 
-# Override console config to ensure it depends on orbital (not inputd),
-# so the display server starts before getty. server.toml includes
-# minimal.toml which would otherwise override desktop-minimal.toml's 30_console.
+# orbterm from desktop-minimal is intentionally kept as the native terminal.
+
+[[files]]
+path = "/usr/lib/init.d/20_orbital"
+data = """
+requires_weak 10_net.target 20_audiod.service
+nowait VT=3 orbital orblogin launcher
+"""
+
 [[files]]
 path = "/usr/lib/init.d/30_console"
 data = """

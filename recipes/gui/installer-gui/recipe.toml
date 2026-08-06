@@ -3,8 +3,12 @@ same_as = "../../core/installer"
 
 [build]
 template = "custom"
+# Keep the recipe revision tied to the launcher manifest. The manifest is
+# installed into /usr/share/ui/apps and must invalidate stale package output.
 script = """
 DYNAMIC_INIT
+test -f "${COOKBOOK_RECIPE}/manifest"
+grep -q '^icon=.*\\.png$' "${COOKBOOK_RECIPE}/manifest"
 COOKBOOK_CARGO_PATH="gui" cookbook_cargo
 
 mkdir -pv "${COOKBOOK_STAGE}/usr/share/ui/apps"

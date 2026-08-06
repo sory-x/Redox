@@ -1,0 +1,26 @@
+# SoryOS complete graphical desktop
+#
+# This profile keeps the native Orbital/minimal profile available through
+# desktop-minimal.toml, but starts the complete Redox X11 + Xfce session.
+# The included x11.toml already includes SoryOS desktop packages from
+# desktop.toml and adds D-Bus, X11 and Xfce.
+
+include = ["x11.toml"]
+
+[general]
+filesystem_size = 2048
+
+[packages]
+# Explicit SoryOS applications kept in the complete profile.
+cosmic-edit = {}
+cosmic-files = {}
+cosmic-icons = {}
+cosmic-term = {}
+installer-gui = {}
+netsurf = {}
+orbdata = {}
+orbital = {}
+orbutils = {}
+pop-icon-theme = {}
+shared-mime-info = {}
+

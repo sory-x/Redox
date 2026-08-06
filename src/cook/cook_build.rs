@@ -5,7 +5,7 @@ use pkgar_keys::PublicKeyFile;
 
 use crate::config::CookConfig;
 use crate::cook::fetch_repo;
-use crate::cook::package::{package_source_paths, package_target};
+use crate::cook::package::{get_package_name, package_source_paths, package_target};
 use crate::cook::{fetch, fs, pty::PtyOut, script::*};
 use crate::recipe::{AutoDeps, BuildKind, CookRecipe, OptionalPackageRecipe, Recipe};
 use std::io::Read;
@@ -262,7 +262,7 @@ pub fn build(
     }
 
     if recipe.build.kind == BuildKind::Remote {
-        return build_remote(stage_dirs, stage_pkgars, recipe, target_dir, logger);
+        return build_remote(stage_dirs, stage_pkgars, name, recipe, target_dir, logger);
     }
 
     let deps_sysroot = if name.is_host() {
@@ -737,14 +737,13 @@ fn build_auto_deps(
 pub fn build_remote(
     stage_dirs: Vec<PathBuf>,
     stage_pkgars: Vec<PathBuf>,
+    name: &PackageName,
     recipe: &Recipe,
     target_dir: &Path,
     logger: &PtyOut,
 ) -> Result<BuildResult> {
     let source_toml = target_dir.join("source.toml");
     let auto_deps_path = target_dir.join("auto_deps.toml");
-    let source_pubkey = fetch_repo::get_binary_pubkey();
-
     let packages = recipe.get_packages_list();
     let mut cached = auto_deps_path.is_file();
     for (i, package) in packages.iter().enumerate() {
@@ -771,6 +770,14 @@ pub fn build_remote(
     for (i, package) in packages.into_iter().enumerate() {
         let stage_dir = &stage_dirs[i];
         let (_, source_pkgar, _) = package_source_paths(package, &target_dir);
+        let source_name = get_package_name(name.as_str(), package);
+        let source_pubkey = if fetch_repo::get_release_package(&source_name)?.is_some() {
+            fetch_repo::get_release_pubkey()?.ok_or_else(|| {
+                Error::Other("SoryOS Release package has no PKGAR public key".to_string())
+            })?
+        } else {
+            fetch_repo::get_binary_pubkey()
+        };
         fs::create_dir_clean(stage_dir)?;
         pkgar::extract(&source_pubkey, &source_pkgar, &stage_dir).map_err(|e| {
             if matches!(e, pkgar::Error::Core(pkgar_core::Error::Dryoc(_))) {

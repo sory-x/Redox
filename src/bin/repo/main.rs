@@ -78,6 +78,7 @@ const REPO_HELP_STR: &str = r#"
         COOKBOOK_WRITE_FILETREE=false whether to write stage files tree
         COOKBOOK_MAKE_JOBS=          override build jobs count from nproc
         COOKBOOK_WEB=false           whether to generate package web files
+        REPO_BINARY_STRICT=false     fail if a binary recipe is absent from the remote repo
 "#;
 
 #[derive(Clone)]
@@ -789,6 +790,26 @@ fn parse_args(args: Vec<String>) -> Result<(CliConfig, CliCommand, Vec<CookRecip
 
     if command.is_building() && recipes.iter().any(|r| r.rule == "binary") {
         let (_, repository) = fetch_repo::get_binary_repo();
+        let strict_binary_repo = env::var("REPO_BINARY_STRICT")
+            .map(|value| matches!(value.as_str(), "1" | "true" | "yes"))
+            .unwrap_or(false);
+        let missing_binary_packages: Vec<String> = recipes
+            .iter()
+            .filter(|recipe| {
+                recipe.rule == "binary" && !repository.packages.contains_key(recipe.name.as_str())
+            })
+            .map(|recipe| recipe.name.to_string())
+            .collect();
+
+        if strict_binary_repo && !missing_binary_packages.is_empty() {
+            return Err(Error::Options(format!(
+                "REPO_BINARY_STRICT=1: missing published binary packages: {}. \
+                 Publish these packages to the configured binary repository; \
+                 no source fallback was allowed.",
+                missing_binary_packages.join(", ")
+            )));
+        }
+
         for recipe in recipes.iter_mut() {
             if recipe.rule == "binary" && !repository.packages.contains_key(recipe.name.as_str()) {
                 if config.cook.verbose && !(config.cook.tui && command == CliCommand::Cook) {

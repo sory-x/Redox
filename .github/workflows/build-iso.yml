@@ -11,11 +11,18 @@ on:
         description: 'Use pre-built repo binary from release (1) or build from source (0)'
         required: true
         default: '1'
+      release-tag:
+        description: 'Immutable SoryOS package Release tag (e.g. soryos-2026.08.1)'
+        required: true
 
 env:
   TOOLCHAIN_BASE: https://github.com/sory-x/soryos-apt/releases/download/toolchain-redox
   REPO_BINARY: ${{ inputs.repo-binary }}
+  REPO_BINARY_STRICT: '1'
+  REPO_BINARY_REFRESH: '1'
   CONFIG_NAME: ${{ inputs.config }}
+  SORYOS_RELEASE_REPOSITORY: sory-x/soryos-apt
+  SORYOS_RELEASE_STRICT: '1'
 
 jobs:
   build-iso:
@@ -29,7 +36,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman wget curl git build-essential pkg-config libssl-dev
+          sudo apt-get install -y podman wget curl git build-essential pkg-config libssl-dev openssl
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -40,15 +47,25 @@ jobs:
       - name: Verify toolchain download
         run: |
           echo "Testing TOOLCHAIN_BASE reachability..."
-          curl -sI "${TOOLCHAIN_BASE}/x86_64-unknown-redox-toolchain.tar.gz" | head -1
+          curl --fail --silent --show-error --head "${TOOLCHAIN_BASE}/x86_64-unknown-redox-toolchain.tar.gz"
 
       - name: Build ISO
         run: |
-          make image REPO_BINARY=${REPO_BINARY} CONFIG_NAME=${CONFIG_NAME}
+          test "${REPO_BINARY}" = "1" || {
+            echo "The ISO workflow requires REPO_BINARY=1; local source compilation is disabled."
+            exit 1
+          }
+          export SORYOS_RELEASE_INDEX_URL="https://github.com/${SORYOS_RELEASE_REPOSITORY}/releases/download/${{ inputs.release-tag }}/index.json"
+          echo "SORYOS_RELEASE_INDEX_URL=${SORYOS_RELEASE_INDEX_URL}" >> "$GITHUB_ENV"
+          make image REPO_BINARY=${REPO_BINARY} REPO_BINARY_STRICT=${REPO_BINARY_STRICT} REPO_BINARY_REFRESH=${REPO_BINARY_REFRESH} CONFIG_NAME=${CONFIG_NAME} SORYOS_RELEASE_INDEX_URL="${SORYOS_RELEASE_INDEX_URL}" SORYOS_RELEASE_REPOSITORY=${SORYOS_RELEASE_REPOSITORY} SORYOS_RELEASE_STRICT=${SORYOS_RELEASE_STRICT}
+
+      - name: Verify native launcher artifacts
+        run: |
+          ./scripts/check-native-artifacts.sh
 
       - name: Build live ISO
         run: |
-          make live REPO_BINARY=${REPO_BINARY} CONFIG_NAME=${CONFIG_NAME}
+          make live REPO_BINARY=${REPO_BINARY} REPO_BINARY_STRICT=${REPO_BINARY_STRICT} REPO_BINARY_REFRESH=${REPO_BINARY_REFRESH} CONFIG_NAME=${CONFIG_NAME} SORYOS_RELEASE_INDEX_URL="${SORYOS_RELEASE_INDEX_URL}" SORYOS_RELEASE_REPOSITORY=${SORYOS_RELEASE_REPOSITORY} SORYOS_RELEASE_STRICT=${SORYOS_RELEASE_STRICT}
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4

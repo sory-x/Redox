@@ -691,12 +691,11 @@ pub fn fetch_remote(
     source_dir: PathBuf,
     logger: &PtyOut,
 ) -> Result<FetchResult> {
-    let (mut manager, repository) = fetch_repo::get_binary_repo();
     let target_dir = create_target_dir(recipe_dir, recipe.target)?;
-    if logger.is_some() {
-        let writer = logger.as_ref().unwrap().1.try_clone().unwrap();
-        manager.set_callback(Rc::new(RefCell::new(PlainPtyCallback::new(writer))));
-    }
+    // Do not initialize the legacy Pages repository until a package is
+    // actually absent from the signed Release index. This keeps the normal
+    // Release path independent from the large legacy repository.
+    let mut legacy_repo = None;
     let packages = recipe.recipe.get_packages_list();
 
     let name = recipe_dir
@@ -707,6 +706,10 @@ pub fn fetch_remote(
 
     let mut result = None;
     let mut cached = true;
+    let release_only = fetch_repo::release_index_configured()
+        && std::env::var("SORYOS_RELEASE_STRICT")
+            .map(|value| matches!(value.as_str(), "1" | "true" | "yes"))
+            .unwrap_or(false);
 
     for package in packages {
         let (_, source_pkgar, source_toml) = package_source_paths(package, &target_dir);
@@ -715,20 +718,57 @@ pub fn fetch_remote(
             source_toml.with_added_extension("tmp"),
         );
         let source_name = get_package_name(name, package);
-        let Some(repo_blake3) = repository.packages.get(&source_name) else {
+        let release_package = fetch_repo::get_release_package(&source_name)?;
+        if release_only && release_package.is_none() {
+            bail_other_err!("Package {source_name} is absent from the signed SoryOS Release index")
+        }
+        if release_package.is_none() && legacy_repo.is_none() {
+            let (mut manager, repository) = fetch_repo::get_binary_repo();
+            if logger.is_some() {
+                let writer = logger.as_ref().unwrap().1.try_clone().unwrap();
+                manager.set_callback(Rc::new(RefCell::new(PlainPtyCallback::new(writer))));
+            }
+            legacy_repo = Some((manager, repository));
+        }
+        let repo_blake3 = legacy_repo
+            .as_ref()
+            .and_then(|(_, repository)| repository.packages.get(&source_name));
+        if repo_blake3.is_none() && release_package.is_none() {
             bail_other_err!("Package {source_name} does not exist in server repository")
-        };
+        }
 
         if !offline_mode {
             if source_toml.is_file() {
                 let pkg_toml = read_source_toml(&source_toml)?;
-                if &pkg_toml.blake3 != repo_blake3 {
+                let package_changed = match (&release_package, repo_blake3) {
+                    (Some(release), _) => pkg_toml.blake3 != release.pkgar.blake3,
+                    (None, Some(repo_blake3)) => &pkg_toml.blake3 != repo_blake3,
+                    (None, None) => true,
+                };
+                if package_changed {
                     log_to_pty!(logger, "DEBUG: Updating source binaries");
                     remove_all(&source_toml)?;
                     if source_pkgar.is_file() {
                         remove_all(&source_pkgar)?;
                     }
                 }
+            }
+
+            if let Some(release) = &release_package {
+                // The detached index authenticates the bytes, while the
+                // package metadata authenticates which archive belongs to
+                // this recipe. Revalidate both even when a local cache exists.
+                let metadata_updated =
+                    fetch_repo::download_release_asset(&release.metadata, &source_toml)?;
+                let pkg_toml = read_source_toml(&source_toml)?;
+                if pkg_toml.blake3 != release.pkgar.blake3 {
+                    bail_other_err!(
+                        "Release metadata for {source_name} points to a different package archive"
+                    );
+                }
+                let pkgar_updated =
+                    fetch_repo::download_release_asset(&release.pkgar, &source_pkgar)?;
+                cached &= !metadata_updated && !pkgar_updated;
             }
 
             if !source_toml.is_file() {
@@ -739,7 +779,11 @@ pub fn fetch_remote(
                     let toml_file =
                         File::create(&tmp_toml).map_err(wrap_io_err!(tmp_toml, "Creating file"))?;
                     let mut writer = DownloadBackendWriter::ToFile(toml_file);
-                    manager.download(&format!("{}.toml", &source_name), None, &mut writer)?;
+                    legacy_repo
+                        .as_mut()
+                        .expect("legacy repository initialized for fallback package")
+                        .0
+                        .download(&format!("{}.toml", &source_name), None, &mut writer)?;
                     read_source_toml(&tmp_toml)?
                 };
 
@@ -749,11 +793,15 @@ pub fn fetch_remote(
                 let pkgar_file =
                     File::create(&tmp_pkgar).map_err(wrap_io_err!(tmp_pkgar, "Creating file"))?;
                 let mut writer = DownloadBackendWriter::ToFile(pkgar_file);
-                manager.download(
-                    &format!("{}.pkgar", &source_name),
-                    Some(pkg_toml.network_size),
-                    &mut writer,
-                )?;
+                legacy_repo
+                    .as_mut()
+                    .expect("legacy repository initialized for fallback package")
+                    .0
+                    .download(
+                        &format!("{}.pkgar", &source_name),
+                        Some(pkg_toml.network_size),
+                        &mut writer,
+                    )?;
                 rename(&tmp_pkgar, &source_pkgar)?;
                 rename(&tmp_toml, &source_toml)?;
                 cached = false;
@@ -761,8 +809,13 @@ pub fn fetch_remote(
 
             // manager.download(file, 0, dest)
         } else {
-            offline_check_exists(&source_pkgar)?;
-            offline_check_exists(&source_toml)?;
+            if let Some(release) = &release_package {
+                fetch_repo::verify_release_asset(&release.pkgar, &source_pkgar)?;
+                fetch_repo::verify_release_asset(&release.metadata, &source_toml)?;
+            } else {
+                offline_check_exists(&source_pkgar)?;
+                offline_check_exists(&source_toml)?;
+            }
         }
 
         // guaranteed to have `None` once and last in iteration

@@ -1,25 +1,328 @@
 use std::{
     cell::RefCell,
-    io::{PipeWriter, Write},
+    fs::File,
+    io::{PipeWriter, Read, Write},
     path::{Path, PathBuf},
+    process::Command,
     rc::Rc,
     time::Duration,
 };
 
 use crate::cook::fs;
 use pkg::{
-    PackageName, RemotePackage, RepoManager, Repository,
     callback::{Callback, PlainCallback, SilentCallback},
-    net_backend::{CurlBackend, DownloadBackend},
+    net_backend::{CurlBackend, DownloadBackend, DownloadBackendWriter},
+    PackageName, RemotePackage, RepoManager, Repository,
 };
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct ReleaseAsset {
+    pub name: String,
+    pub url: String,
+    pub size: u64,
+    pub blake3: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct ReleasePackage {
+    pub pkgar: ReleaseAsset,
+    pub metadata: ReleaseAsset,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ReleaseSignature {
+    url: String,
+    public_key_url: String,
+    runtime_public_key_url: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct ReleaseDocument {
+    schema: u32,
+    repository: String,
+    target: String,
+    release: ReleaseInfo,
+    packages: std::collections::BTreeMap<String, ReleasePackage>,
+    pkgar_public_key: Option<ReleaseAsset>,
+    signature: ReleaseSignature,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+struct ReleaseInfo {
+    tag: String,
+    immutable: bool,
+}
 
 // TODO: This is a workaround, but as long as whole
 // fetch operation is in single thread, this is ok
 thread_local! {
 static BINARY_REPO: RefCell<Option<(RepoManager, Repository)>> = RefCell::new(None);
+static RELEASE_INDEX: RefCell<Option<Option<ReleaseDocument>>> = RefCell::new(None);
+}
+
+fn release_index_url() -> Option<String> {
+    std::env::var("SORYOS_RELEASE_INDEX_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+}
+
+pub fn release_index_configured() -> bool {
+    release_index_url().is_some()
+}
+
+fn download_bytes(url: &str) -> crate::Result<Vec<u8>> {
+    let callback = Rc::new(RefCell::new(SilentCallback::new()));
+    let backend = CurlBackend::new().map_err(|error| {
+        crate::Error::Other(format!("creating Release download backend: {error}"))
+    })?;
+    let mut writer = DownloadBackendWriter::ToBuf(Vec::new());
+    backend
+        .download(url, None, &mut writer, callback)
+        .map_err(|error| {
+            crate::Error::Other(format!("downloading Release asset {url}: {error}"))
+        })?;
+    Ok(writer.to_inner_buf())
+}
+
+fn write_bytes(path: &Path, bytes: &[u8]) -> crate::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            crate::Error::from_io_error(error, "creating Release index cache directory")
+        })?;
+    }
+    let temporary = path.with_extension("tmp");
+    std::fs::write(&temporary, bytes)
+        .map_err(|error| crate::Error::from_io_error(error, "writing Release index cache"))?;
+    std::fs::rename(&temporary, path)
+        .map_err(|error| crate::Error::from_io_error(error, "installing Release index cache"))?;
+    Ok(())
+}
+
+fn verify_release_signature(
+    index_path: &Path,
+    signature_path: &Path,
+    public_key_path: &Path,
+) -> crate::Result<()> {
+    let status = Command::new("openssl")
+        .args(["pkeyutl", "-verify", "-rawin", "-pubin", "-inkey"])
+        .arg(public_key_path)
+        .args(["-in"])
+        .arg(index_path)
+        .args(["-sigfile"])
+        .arg(signature_path)
+        .status()
+        .map_err(|error| {
+            crate::Error::from_io_error(error, "starting OpenSSL Release signature verification")
+        })?;
+    if !status.success() {
+        return Err(crate::Error::Other(
+            "Release index signature verification failed".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn load_release_index() -> crate::Result<Option<ReleaseDocument>> {
+    RELEASE_INDEX.with(|cell| {
+        let mut cached = cell.borrow_mut();
+        if let Some(index) = cached.as_ref() {
+            return Ok(index.clone());
+        }
+
+        let Some(index_url) = release_index_url() else {
+            *cached = Some(None);
+            return Ok(None);
+        };
+
+        let cache_dir = PathBuf::from("build/remotes/soryos-release");
+        let index_path = cache_dir.join("index.json");
+        let index_bytes = if crate::config::get_config().cook.offline {
+            std::fs::read(&index_path).map_err(|error| {
+                crate::Error::from_io_error(error, "reading cached SoryOS Release index")
+            })?
+        } else {
+            let bytes = download_bytes(&index_url)?;
+            write_bytes(&index_path, &bytes)?;
+            bytes
+        };
+
+        let document: ReleaseDocument = serde_json::from_slice(&index_bytes).map_err(|error| {
+            crate::Error::Other(format!("invalid SoryOS Release index: {error}"))
+        })?;
+        if document.schema != 1 || !document.release.immutable {
+            return Err(crate::Error::Other(
+                "SoryOS Release index is not an immutable schema 1 document".to_string(),
+            ));
+        }
+        let expected_repository = std::env::var("SORYOS_RELEASE_REPOSITORY")
+            .unwrap_or_else(|_| "sory-x/soryos-apt".to_string());
+        if document.repository != expected_repository {
+            return Err(crate::Error::Other(format!(
+                "SoryOS Release index repository mismatch: expected {expected_repository}, got {}",
+                document.repository
+            )));
+        }
+        let expected_target =
+            std::env::var("TARGET").unwrap_or_else(|_| "x86_64-unknown-redox".to_string());
+        if document.target != expected_target {
+            return Err(crate::Error::Other(format!(
+                "SoryOS Release index target mismatch: expected {expected_target}, got {}",
+                document.target
+            )));
+        }
+        let Some(release_base) = index_url.strip_suffix("/index.json") else {
+            return Err(crate::Error::Other(
+                "SoryOS Release index URL must end with /index.json".to_string(),
+            ));
+        };
+        let expected_base = format!(
+            "https://github.com/{}/releases/download/{}",
+            document.repository, document.release.tag
+        );
+        if release_base != expected_base
+            || document.signature.url != format!("{release_base}/index.json.sig")
+            || document.signature.public_key_url
+                != format!("{release_base}/index-signing-key.pub.pem")
+            || document.signature.runtime_public_key_url
+                != format!("{release_base}/index-signing-key.pub.hex")
+        {
+            return Err(crate::Error::Other(
+                "SoryOS Release index URLs do not match its immutable repository and tag"
+                    .to_string(),
+            ));
+        }
+
+        let (signature_path, public_key_path) = (
+            cache_dir.join("index.json.sig"),
+            cache_dir.join("index-signing-key.pub.pem"),
+        );
+        if crate::config::get_config().cook.offline {
+            if !signature_path.is_file() || !public_key_path.is_file() {
+                return Err(crate::Error::Other(
+                    "offline SoryOS Release index is missing its signature or public key"
+                        .to_string(),
+                ));
+            }
+        } else {
+            write_bytes(&signature_path, &download_bytes(&document.signature.url)?)?;
+            write_bytes(
+                &public_key_path,
+                &download_bytes(&document.signature.public_key_url)?,
+            )?;
+        }
+        verify_release_signature(&index_path, &signature_path, &public_key_path)?;
+
+        let result = Some(document);
+        *cached = Some(result.clone());
+        Ok(result)
+    })
+}
+
+pub fn get_release_package(name: &str) -> crate::Result<Option<ReleasePackage>> {
+    Ok(load_release_index()?.and_then(|index| index.packages.get(name).cloned()))
+}
+
+pub fn get_release_pubkey() -> crate::Result<Option<PathBuf>> {
+    let Some(index) = load_release_index()? else {
+        return Ok(None);
+    };
+    let Some(asset) = index.pkgar_public_key else {
+        return Err(crate::Error::Other(
+            "SoryOS Release index has no PKGAR public key".to_string(),
+        ));
+    };
+    let path = PathBuf::from("build/remotes/soryos-release").join(&asset.name);
+    let _ = download_release_asset(&asset, &path)?;
+    Ok(Some(path))
+}
+
+pub fn download_release_asset(asset: &ReleaseAsset, destination: &Path) -> crate::Result<bool> {
+    if destination.is_file() {
+        if verify_release_asset(asset, destination)? {
+            return Ok(false);
+        }
+        std::fs::remove_file(destination).map_err(|error| {
+            crate::Error::from_io_error(error, "removing invalid Release asset")
+        })?;
+    }
+
+    let temporary = destination.with_added_extension("release-tmp");
+    if temporary.exists() {
+        std::fs::remove_file(&temporary).map_err(|error| {
+            crate::Error::from_io_error(error, "removing stale Release download")
+        })?;
+    }
+    let file = File::create(&temporary)
+        .map_err(|error| crate::Error::from_io_error(error, "creating Release asset"))?;
+    let callback = Rc::new(RefCell::new(SilentCallback::new()));
+    let backend = CurlBackend::new().map_err(|error| {
+        crate::Error::Other(format!("creating Release download backend: {error}"))
+    })?;
+    let mut writer = DownloadBackendWriter::ToFile(file);
+    backend
+        .download(&asset.url, Some(asset.size), &mut writer, callback)
+        .map_err(|error| {
+            crate::Error::Other(format!("downloading Release asset {}: {error}", asset.name))
+        })?;
+    drop(writer);
+
+    let actual_size = std::fs::metadata(&temporary)
+        .map_err(|error| crate::Error::from_io_error(error, "checking Release asset size"))?
+        .len();
+    let actual_blake3 = file_blake3(&temporary)?;
+    if actual_size != asset.size || actual_blake3 != asset.blake3 {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(crate::Error::Other(format!(
+            "Release asset {} failed verification (size {actual_size}, BLAKE3 {actual_blake3})",
+            asset.name
+        )));
+    }
+    std::fs::rename(&temporary, destination)
+        .map_err(|error| crate::Error::from_io_error(error, "installing verified Release asset"))?;
+    Ok(true)
+}
+
+pub fn verify_release_asset(asset: &ReleaseAsset, path: &Path) -> crate::Result<()> {
+    let metadata = std::fs::metadata(path)
+        .map_err(|error| crate::Error::from_io_error(error, "reading cached Release asset"))?;
+    let actual_blake3 = file_blake3(path)?;
+    if metadata.len() != asset.size || actual_blake3 != asset.blake3 {
+        return Err(crate::Error::Other(format!(
+            "cached Release asset {} failed verification (size {}, BLAKE3 {})",
+            asset.name,
+            metadata.len(),
+            actual_blake3
+        )));
+    }
+    Ok(())
+}
+
+fn file_blake3(path: &Path) -> crate::Result<String> {
+    let mut file = File::open(path).map_err(|error| {
+        crate::Error::from_io_error(error, "opening file for BLAKE3 verification")
+    })?;
+    let mut hasher = blake3::Hasher::new();
+    let mut buffer = [0u8; 1024 * 1024];
+    loop {
+        let count = file.read(&mut buffer).map_err(|error| {
+            crate::Error::from_io_error(error, "reading file for BLAKE3 verification")
+        })?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    Ok(hasher.finalize().to_hex().to_string())
 }
 
 fn load_cached_repo(path: &Path) -> Option<Repository> {
+    let refresh = std::env::var("REPO_BINARY_REFRESH")
+        .map(|value| matches!(value.as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false);
+    if refresh {
+        return None;
+    }
+
     let metadata = std::fs::metadata(path).ok()?;
 
     if !crate::config::get_config().cook.offline {
@@ -52,13 +355,13 @@ fn init_binary_repo() -> (RepoManager, Repository) {
         load_cached_repo(&repo_path.join(format!("repo_{}_{target}.toml", repo.remotes[0])))
             .unwrap_or_else(|| {
                 let repo = download_repo(&repo, repo_path)
-                .map_err(|e| {
-                    eprintln!(
+                    .map_err(|e| {
+                        eprintln!(
                         "Unable to load server repo.toml, all recipes will build from source: {e}"
                     );
-                    e
-                })
-                .unwrap_or_default();
+                        e
+                    })
+                    .unwrap_or_default();
                 repo
             });
     // reset here to not clobber pty

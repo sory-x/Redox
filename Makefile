@@ -20,6 +20,7 @@ image:
 	-$(FUMOUNT) $(BUILD)/filesystem/ || true
 	-$(FUMOUNT) /tmp/redox_installer/ || true
 	rm -f $(BUILD)/harddrive.img $(BUILD)/redox-live.iso
+	rm -f $(BUILD)/repo.tag
 	$(MAKE) all
 
 rebuild:
