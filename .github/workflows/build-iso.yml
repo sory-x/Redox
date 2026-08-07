@@ -47,7 +47,9 @@ jobs:
       - name: Verify toolchain download
         run: |
           echo "Testing TOOLCHAIN_BASE reachability..."
-          curl --fail --silent --show-error --head "${TOOLCHAIN_BASE}/x86_64-unknown-redox-toolchain.tar.gz"
+          for asset in gcc-install.tar.gz rust-install.tar.gz clang-install.tar.gz; do
+            curl --fail --silent --show-error --head "${TOOLCHAIN_BASE}/${asset}"
+          done
 
       - name: Build ISO
         run: |
