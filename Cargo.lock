@@ -703,7 +703,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "pkgar"
 version = "0.2.2"
-source = "git+https://gitlab.redox-os.org/redox-os/pkgar.git#ee2bcb2af97eba496ebd8eaf44f5acbed452c4ec"
+source = "git+https://gitlab.redox-os.org/redox-os/pkgar.git#ee9443c7157724b12874a34121178e5abe3771c3"
 dependencies = [
  "blake3",
  "bytemuck",
@@ -716,7 +716,7 @@ dependencies = [
 [[package]]
 name = "pkgar-core"
 version = "0.2.2"
-source = "git+https://gitlab.redox-os.org/redox-os/pkgar.git#ee2bcb2af97eba496ebd8eaf44f5acbed452c4ec"
+source = "git+https://gitlab.redox-os.org/redox-os/pkgar.git#ee9443c7157724b12874a34121178e5abe3771c3"
 dependencies = [
  "bitflags",
  "blake3",
@@ -727,7 +727,7 @@ dependencies = [
 [[package]]
 name = "pkgar-keys"
 version = "0.2.2"
-source = "git+https://gitlab.redox-os.org/redox-os/pkgar.git#ee2bcb2af97eba496ebd8eaf44f5acbed452c4ec"
+source = "git+https://gitlab.redox-os.org/redox-os/pkgar.git#ee9443c7157724b12874a34121178e5abe3771c3"
 dependencies = [
  "hex",
  "pkgar-core",
@@ -860,12 +860,7 @@ version = "0.3.1"
 source = "git+https://gitlab.com/sory-os/pkgutils.git#277824dc267388a1d3d0de7fe1f50d2c7fe8359c"
 dependencies = [
  "blake3",
- "futures-channel",
  "hex",
- "indicatif",
- "pkgar",
- "pkgar-core",
- "reqwest",
  "serde",
  "serde_derive",
  "serde_json",
