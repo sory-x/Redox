@@ -857,11 +857,18 @@ dependencies = [
 [[package]]
 name = "redox-pkg"
 version = "0.3.1"
-source = "git+https://gitlab.redox-os.org/redox-os/pkgutils.git#1250a77bf160a79492cf1943b3b2533b39ebba73"
+source = "git+https://gitlab.com/sory-os/pkgutils.git#277824dc267388a1d3d0de7fe1f50d2c7fe8359c"
 dependencies = [
+ "blake3",
+ "futures-channel",
  "hex",
+ "indicatif",
+ "pkgar",
+ "pkgar-core",
+ "reqwest",
  "serde",
  "serde_derive",
+ "serde_json",
  "thiserror",
  "toml",
 ]
