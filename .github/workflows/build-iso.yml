@@ -59,6 +59,26 @@ jobs:
           }
           export SORYOS_RELEASE_INDEX_URL="https://github.com/${SORYOS_RELEASE_REPOSITORY}/releases/download/${{ inputs.release-tag }}/index.json"
           echo "SORYOS_RELEASE_INDEX_URL=${SORYOS_RELEASE_INDEX_URL}" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          import tomllib
+
+          config_name = os.environ["CONFIG_NAME"]
+          with open(f"config/{config_name}.toml", "rb") as handle:
+              config = tomllib.load(handle)
+          with urllib.request.urlopen(os.environ["SORYOS_RELEASE_INDEX_URL"]) as response:
+              index = json.load(response)
+          available = set(index.get("packages", {}))
+          required = set(config.get("packages", {}))
+          missing = sorted(required - available)
+          if missing:
+              raise SystemExit(
+                  "Release is incomplete for " + config_name + ": " + ", ".join(missing)
+              )
+          print(f"Release contains all {len(required)} direct {config_name} packages")
+          PY
           make image REPO_BINARY=${REPO_BINARY} REPO_BINARY_STRICT=${REPO_BINARY_STRICT} REPO_BINARY_REFRESH=${REPO_BINARY_REFRESH} CONFIG_NAME=${CONFIG_NAME} SORYOS_RELEASE_INDEX_URL="${SORYOS_RELEASE_INDEX_URL}" SORYOS_RELEASE_REPOSITORY=${SORYOS_RELEASE_REPOSITORY} SORYOS_RELEASE_STRICT=${SORYOS_RELEASE_STRICT}
 
       - name: Verify native launcher artifacts
