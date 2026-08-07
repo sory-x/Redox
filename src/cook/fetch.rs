@@ -6,13 +6,14 @@ use crate::cook::{
     script::*,
 };
 use crate::{
-    Error, Result, bail_other_err,
+    bail_other_err,
     config::translate_mirror,
     is_redox, log_to_pty,
     recipe::{BuildKind, CookRecipe, SourceRecipe},
-    wrap_io_err, wrap_other_err,
+    wrap_io_err, wrap_other_err, Error, Result,
 };
-use pkg::{SourceIdentifier, net_backend::DownloadBackendWriter};
+use pkg::{net_backend::DownloadBackendWriter, SourceIdentifier};
+use pkgar_core::PackageSrc;
 use std::{
     cell::RefCell,
     collections::BTreeMap,
@@ -760,14 +761,22 @@ pub fn fetch_remote(
                 // this recipe. Revalidate both even when a local cache exists.
                 let metadata_updated =
                     fetch_repo::download_release_asset(&release.metadata, &source_toml)?;
-                let pkg_toml = read_source_toml(&source_toml)?;
-                if pkg_toml.blake3 != release.pkgar.blake3 {
-                    bail_other_err!(
-                        "Release metadata for {source_name} points to a different package archive"
-                    );
-                }
                 let pkgar_updated =
                     fetch_repo::download_release_asset(&release.pkgar, &source_pkgar)?;
+                let pkg_toml = read_source_toml(&source_toml)?;
+                let release_pubkey = fetch_repo::get_release_pubkey()?.ok_or_else(|| {
+                    crate::Error::Other("SoryOS Release index has no PKGAR public key".to_string())
+                })?;
+                let public_key = pkgar_keys::PublicKeyFile::open(release_pubkey)?.pkey;
+                let package = pkgar::PackageFile::new(&source_pkgar, &public_key)?;
+                let package_blake3 = blake3::Hash::from_bytes(package.header().blake3)
+                    .to_hex()
+                    .to_string();
+                if pkg_toml.blake3 != package_blake3 {
+                    bail_other_err!(
+                        "Release metadata for {source_name} does not match the signed package"
+                    );
+                }
                 cached &= !metadata_updated && !pkgar_updated;
             }
 
