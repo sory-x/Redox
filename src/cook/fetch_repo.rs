@@ -29,7 +29,7 @@ pub struct ReleasePackage {
     pub metadata: ReleaseAsset,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize)]
 struct ReleaseSignature {
     url: String,
     public_key_url: String,
@@ -238,7 +238,7 @@ pub fn get_release_pubkey() -> crate::Result<Option<PathBuf>> {
 
 pub fn download_release_asset(asset: &ReleaseAsset, destination: &Path) -> crate::Result<bool> {
     if destination.is_file() {
-        if verify_release_asset(asset, destination)? {
+        if verify_release_asset(asset, destination).is_ok() {
             return Ok(false);
         }
         std::fs::remove_file(destination).map_err(|error| {
