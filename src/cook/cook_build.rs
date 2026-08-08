@@ -218,6 +218,15 @@ pub fn build(
         return Ok(BuildResult::new(stage_dirs, BTreeSet::new()));
     }
 
+    // redoxer downloads the official Redox toolchain from its own external
+    // mirror when REDOXER_TOOLCHAIN is missing. SoryOS must use the extracted
+    // toolchain prepared by mk/prefix.mk from the signed SoryOS Release.
+    if is_redox() && std::env::var_os("REDOXER_TOOLCHAIN").is_none() {
+        return Err(Error::Other(
+            "REDOXER_TOOLCHAIN is required; external Redox toolchain downloads are disabled. Run `make prefix` with the SoryOS TOOLCHAIN_BASE first.".into(),
+        ));
+    }
+
     let mut dep_pkgars = BTreeSet::new();
     let mut dep_host_pkgars = BTreeSet::new();
     let build_deps = CookRecipe::get_build_deps_recursive(

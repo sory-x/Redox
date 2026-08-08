@@ -5,12 +5,10 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     rc::Rc,
-    time::Duration,
 };
 
-use crate::cook::fs;
 use pkg::{
-    callback::{Callback, PlainCallback, SilentCallback},
+    callback::{Callback, SilentCallback},
     net_backend::{CurlBackend, DownloadBackend, DownloadBackendWriter},
     PackageName, RemotePackage, RepoManager, Repository,
 };
@@ -315,66 +313,15 @@ fn file_blake3(path: &Path) -> crate::Result<String> {
     Ok(hasher.finalize().to_hex().to_string())
 }
 
-fn load_cached_repo(path: &Path) -> Option<Repository> {
-    let refresh = std::env::var("REPO_BINARY_REFRESH")
-        .map(|value| matches!(value.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false);
-    if refresh {
-        return None;
-    }
-
-    let metadata = std::fs::metadata(path).ok()?;
-
-    if !crate::config::get_config().cook.offline {
-        let stale_time = std::time::SystemTime::now().checked_sub(Duration::from_secs(8 * 3600))?;
-        if metadata.modified().ok()? < stale_time {
-            // stale cache
-            let _ = std::fs::remove_file(path);
-            return None;
-        }
-    }
-
-    let toml_str = std::fs::read_to_string(path).ok()?;
-    Repository::from_toml(&toml_str).ok()
-}
-
 fn init_binary_repo() -> (RepoManager, Repository) {
-    let callback = Rc::new(RefCell::new(SilentCallback::new()));
-    let download_backend = CurlBackend::new().expect("Curl not found");
-    let mut repo = RepoManager::new(callback, Box::new(download_backend));
-    let target = redoxer::target();
-    let remote_source = crate::config::translate_mirror(crate::REMOTE_PKG_SOURCE);
-    repo.add_remote(&remote_source, target)
-        .expect("Unable to add remote");
-
-    let repo_path = PathBuf::from("build/remotes");
-    repo.set_download_path(repo_path.clone());
-    repo.sync_keys().expect("Unable to sync keys");
-
-    let repo_toml =
-        load_cached_repo(&repo_path.join(format!("repo_{}_{target}.toml", repo.remotes[0])))
-            .unwrap_or_else(|| {
-                let repo = download_repo(&repo, repo_path)
-                    .map_err(|e| {
-                        eprintln!(
-                        "Unable to load server repo.toml, all recipes will build from source: {e}"
-                    );
-                        e
-                    })
-                    .unwrap_or_default();
-                repo
-            });
-    // reset here to not clobber pty
-    repo.callback = Rc::new(RefCell::new(PlainCallback::new()));
-    (repo, repo_toml)
-}
-
-fn download_repo(repo: &RepoManager, repo_path: PathBuf) -> crate::Result<Repository> {
-    let (toml_str, _) = repo.get_package_toml(&PackageName::new("repo").unwrap())?;
-    let repo = Repository::from_toml(&toml_str)?;
-    let target = redoxer::target();
-    fs::serialize_and_write(&repo_path.join(format!("{target}_repo.toml")), &repo)?;
-    Ok(repo)
+    // Do not silently fall back to the historical Redox package mirror.
+    // SoryOS packages are fetched only from the verified Release index in
+    // `get_release_package`. Keeping this fallback would allow a missing
+    // package to trigger an external download and would make an ISO differ
+    // from the signed SoryOS inventory.
+    panic!(
+        "legacy external package repositories are disabled; publish the package in the signed SoryOS Release"
+    );
 }
 
 pub fn get_binary_repo() -> (RepoManager, Repository) {

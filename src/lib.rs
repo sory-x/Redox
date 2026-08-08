@@ -7,10 +7,6 @@ pub mod web;
 /// Default for maximum number of levels to descend down dependencies tree.
 pub const WALK_DEPTH: usize = 16;
 
-/// Default remote package source, for recipes with build type = "remote".
-/// This is overridable with mirrors config (via `cookbook.toml`).
-pub const REMOTE_PKG_SOURCE: &str = "https://static.redox-os.org/pkg";
-
 pub fn is_redox() -> bool {
     cfg!(target_os = "redox")
 }

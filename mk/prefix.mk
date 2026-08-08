@@ -134,8 +134,9 @@ $(PREFIX)/id_ed25519.pub.toml: | $(CONTAINER_TAG)
 ifeq ($(PODMAN_BUILD),1)
 	$(PODMAN_RUN) make $@
 else
+	@test -n "$(SORYOS_RELEASE_INDEX_URL)" || { echo "SORYOS_RELEASE_INDEX_URL is required for PREFIX_BINARY=1; legacy static repositories are disabled." >&2; exit 1; }
 	mkdir -p "$(@D)"
-	wget -O $@.partial "https://static.redox-os.org/pkg/id_ed25519.pub.toml"
+	wget -O $@.partial "$(patsubst %/index.json,%/id_ed25519.pub.toml,$(SORYOS_RELEASE_INDEX_URL))"
 	mv $@.partial $@
 endif
 

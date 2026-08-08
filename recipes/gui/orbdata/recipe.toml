@@ -5,4 +5,13 @@ git = "https://gitlab.com/sory-os/orbdata.git"
 template = "custom"
 script = """
 cp -rv "${COOKBOOK_SOURCE}/"* "${COOKBOOK_STAGE}/"
+
+# mimeapps.list is configuration, not a desktop entry.  Keeping it under
+# /usr/share/applications makes the native launcher parse it as an app with
+# no Name/Exec/Icon and print "failed to load icon None".
+if [ -f "${COOKBOOK_STAGE}/usr/share/applications/mimeapps.list" ]; then
+    mkdir -p "${COOKBOOK_STAGE}/etc/xdg"
+    mv "${COOKBOOK_STAGE}/usr/share/applications/mimeapps.list" \
+        "${COOKBOOK_STAGE}/etc/xdg/mimeapps.list"
+fi
 """

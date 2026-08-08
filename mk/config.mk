@@ -11,12 +11,12 @@ ARCH?=$(HOST_ARCH)
 BOARD?=
 ## Enable to use binary prefix (much faster)
 PREFIX_BINARY?=1
-## Base URL where the prebuilt toolchain archives and base pkgar packages are
-## downloaded from. SoryOS mirrors static.redox-os.org into a GitHub Release:
-##   https://github.com/sory-x/soryos-apt/releases/download/toolchain-redox
-## Override to keep using the upstream server:
-##   TOOLCHAIN_BASE=https://static.redox-os.org/toolchain
+## Base URL where the SoryOS prebuilt toolchain archives and base pkgar
+## packages are downloaded from. External toolchain mirrors are disabled.
 TOOLCHAIN_BASE?=https://github.com/sory-x/soryos-apt/releases/download/toolchain-redox
+ifneq ($(findstring static.redox-os.org,$(TOOLCHAIN_BASE)),)
+$(error External Redox toolchain mirrors are disabled; use SoryOS TOOLCHAIN_BASE)
+endif
 ## Enable to use up-to-date rust compiler (experimental, only available to Tier 2 targets)
 ## Even more experimental, add -Zbuild-std to cookbook.toml to allow compilation to Tier 3 targets
 PREFIX_USE_UPSTREAM_RUST_COMPILER?=0
@@ -26,11 +26,11 @@ REPO_BINARY?=
 REPO_BINARY_STRICT?=0
 ## Ignore the local remote-repository cache and refresh its metadata
 REPO_BINARY_REFRESH?=0
-## Optional signed SoryOS Release index used before the legacy repository
+## Signed SoryOS Release index used for binary packages
 SORYOS_RELEASE_INDEX_URL?=
 SORYOS_RELEASE_REPOSITORY?=sory-x/soryos-apt
-## Refuse the legacy Pages repository when a Release index is configured
-SORYOS_RELEASE_STRICT?=0
+## Refuse every legacy repository when a Release index is configured
+SORYOS_RELEASE_STRICT?=1
 ## Name of the configuration to include in the image name e.g. desktop or server
 CONFIG_NAME?=desktop
 ## Build appstream data for repo
